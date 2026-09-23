@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Encelium Baseline Survey</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1E2220">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+  :root{
+    --ground:#F2F0EC; --panel:#FFFFFF; --panel-2:#E9E6E0;
+    --ink:#1C1F1E; --ink-2:#4A524E; --ink-3:#7C857F;
+    --line:#D4D0C8; --line-2:#BFBAB0;
+    --bus:#3F7A4E; --bus-soft:#E2EDE4; --bus-ink:#2A5637;
+    --unknown:#B3761A; --unknown-soft:#F6EBD8;
+    --missing:#A33A2C;
+    --tap:52px;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#141715; --panel:#1E2220; --panel-2:#272C29;
+      --ink:#EDEFEC; --ink-2:#AEB5B0; --ink-3:#7E877F;
+      --line:#333937; --line-2:#454C48;
+      --bus:#6FBF84; --bus-soft:#1E2E23; --bus-ink:#9BD7AA;
+      --unknown:#E0A54A; --unknown-soft:#33280F;
+      --missing:#E4776A;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#141715; --panel:#1E2220; --panel-2:#272C29;
+    --ink:#EDEFEC; --ink-2:#AEB5B0; --ink-3:#7E877F;
+    --line:#333937; --line-2:#454C48;
+    --bus:#6FBF84; --bus-soft:#1E2E23; --bus-ink:#9BD7AA;
+    --unknown:#E0A54A; --unknown-soft:#33280F;
+    --missing:#E4776A;
+  }
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size:15px; line-height:1.45; -webkit-text-size-adjust:100%;
+    display:flex; flex-direction:column; height:100%;
+    padding-top:env(safe-area-inset-top, 0px);
+  }
+  *{box-sizing:border-box}
+  button{font:inherit; color:inherit; cursor:pointer}
+  [hidden]{display:none !important}
+  img{max-width:100%}
+  .mono{font-family:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric:tabular-nums}
+
+  header{
+    position:sticky; top:0; z-index:30;
+    background:var(--panel); border-bottom:1px solid var(--line); padding:10px 16px 0;
+  }
+  .hrow{display:flex; align-items:center; gap:10px}
+  .site{font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+  .grow{flex:1; min-width:0}
+  .iconbtn{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:9px;
+    width:40px; height:36px; display:grid; place-items:center; flex:none;
+  }
+  .floors{display:flex; gap:6px; overflow-x:auto; padding:9px 0 8px; scrollbar-width:none}
+  .floors::-webkit-scrollbar{display:none}
+  .floor{
+    flex:none; border:1px solid var(--line); background:transparent; color:var(--ink-2);
+    border-radius:999px; padding:6px 13px; font-size:13px; font-weight:600; white-space:nowrap;
+  }
+  .floor[aria-pressed="true"]{background:var(--ink); color:var(--ground); border-color:var(--ink)}
+  .bar{height:3px; background:var(--panel-2); border-radius:2px; overflow:hidden; flex:1}
+  .bar i{display:block; height:100%; background:var(--bus); width:0; transition:width .25s ease}
+  .barwrap{display:flex; align-items:center; gap:10px; padding-bottom:10px}
+  .count{font-size:12px; color:var(--ink-3); font-weight:600; flex:none}
+
+  main{flex:1; overflow-y:auto; padding:16px 16px 20px; -webkit-overflow-scrolling:touch}
+  .wrap{max-width:560px; margin:0 auto}
+  .roomhead{display:flex; align-items:flex-start; gap:12px; margin-bottom:4px}
+  .rnum{font-size:30px; font-weight:600; letter-spacing:-.01em; line-height:1.05}
+  .rname{font-size:16px; color:var(--ink-2); font-weight:500; line-height:1.25}
+  .chip{
+    display:inline-flex; align-items:center; gap:6px; margin-top:8px;
+    background:var(--panel-2); border:1px solid var(--line); color:var(--ink-2);
+    border-radius:999px; padding:5px 11px; font-size:12.5px; font-weight:600;
+  }
+  fieldset{border:0; margin:20px 0 0; padding:0}
+  legend{padding:0 0 8px; font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:700}
+  .hint{font-size:12.5px; color:var(--ink-3); margin:-4px 0 9px}
+  .opts{display:grid; gap:8px}
+  .opts.three{grid-template-columns:repeat(3,1fr)}
+  .opt{
+    min-height:var(--tap); border:1px solid var(--line); background:var(--panel);
+    border-radius:11px; padding:10px 12px; text-align:left; display:flex;
+    flex-direction:column; justify-content:center; gap:2px; line-height:1.25;
+  }
+  .opt b{font-weight:600; font-size:14.5px}
+  .opt span{font-size:11.5px; color:var(--ink-3)}
+  .opt[aria-pressed="true"]{border-color:var(--bus); background:var(--bus-soft); box-shadow:inset 0 0 0 1px var(--bus)}
+  .opt[aria-pressed="true"] b{color:var(--bus-ink)}
+  .opt.unk[aria-pressed="true"]{border-color:var(--unknown); background:var(--unknown-soft); box-shadow:inset 0 0 0 1px var(--unknown)}
+  .opt.unk[aria-pressed="true"] b{color:var(--unknown)}
+  .numrow{display:flex; gap:8px; align-items:stretch}
+  input[type="number"]{
+    flex:1; min-width:0; min-height:var(--tap); border:1px solid var(--line); background:var(--panel);
+    color:var(--ink); border-radius:11px; padding:10px 14px; font-size:19px; font-weight:600;
+    font-family:'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric:tabular-nums;
+  }
+  input:focus-visible, .opt:focus-visible, button:focus-visible, textarea:focus-visible{
+    outline:2px solid var(--bus); outline-offset:2px;
+  }
+  .unit{
+    flex:none; display:grid; place-items:center; padding:0 13px; border-radius:11px;
+    background:var(--panel-2); border:1px solid var(--line); font-size:12px;
+    color:var(--ink-3); font-weight:600; text-align:center; line-height:1.2;
+  }
+  textarea{
+    width:100%; min-height:70px; border:1px solid var(--line); background:var(--panel);
+    color:var(--ink); border-radius:11px; padding:11px 13px; font:inherit; resize:vertical;
+  }
+  footer{
+    position:sticky; bottom:0; z-index:30; background:var(--panel); border-top:1px solid var(--line);
+    padding:10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    display:flex; gap:8px; align-items:center;
+  }
+  .nav{
+    min-height:var(--tap); border:1px solid var(--line-2); background:var(--panel);
+    border-radius:11px; padding:0 15px; font-weight:600; font-size:14.5px; flex:none;
+  }
+  .nav.primary{background:var(--ink); color:var(--ground); border-color:var(--ink); flex:1}
+  .nav.ghost{flex:1; font-size:13.5px}
+  .nav:disabled{opacity:.36}
+  .scrim{position:fixed; inset:0; background:rgba(10,12,11,.5); z-index:40; border:0; padding:0; width:100%}
+  .drawer{
+    position:fixed; z-index:41; top:0; right:0; bottom:0; width:min(86%, 380px);
+    background:var(--ground); border-left:1px solid var(--line); display:flex; flex-direction:column;
+    padding-top:env(safe-area-inset-top, 0px); padding-bottom:env(safe-area-inset-bottom, 0px);
+  }
+  .dhead{padding:14px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; background:var(--panel)}
+  .dlist{flex:1; overflow-y:auto; padding:8px 10px 16px}
+  .rrow{
+    width:100%; display:flex; align-items:center; gap:11px; padding:11px 10px;
+    background:transparent; border:0; border-bottom:1px solid var(--line); text-align:left;
+  }
+  .rrow[aria-current="true"]{background:var(--panel-2); border-radius:9px; border-bottom-color:transparent}
+  .dot{width:9px; height:9px; border-radius:50%; flex:none; background:var(--line-2)}
+  .dot.done{background:var(--bus)}
+  .dot.part{background:var(--unknown)}
+  .rrow .n{font-weight:600; font-size:14px; flex:none; min-width:58px}
+  .rrow .t{font-size:13px; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .sheet{
+    position:fixed; z-index:41; left:0; right:0; bottom:0; max-height:88%;
+    background:var(--ground); border-top:1px solid var(--line); border-radius:16px 16px 0 0;
+    display:flex; flex-direction:column; padding-bottom:env(safe-area-inset-bottom, 0px);
+  }
+  .sbody{overflow-y:auto; padding:18px 16px 22px}
+  .sbody h2{margin:0 0 3px; font-size:18px}
+  .sbody p{margin:0 0 15px; color:var(--ink-2); font-size:13.5px}
+  .stat{display:flex; justify-content:space-between; gap:12px; padding:11px 0; border-bottom:1px solid var(--line); font-size:14px}
+  .stat b{font-weight:600}
+  .warn{margin:14px 0 0; padding:11px 13px; border-radius:10px; font-size:13px; line-height:1.4;
+    background:var(--unknown-soft); border:1px solid var(--unknown); color:var(--ink)}
+  .warn.ok{background:var(--bus-soft); border-color:var(--bus)}
+  .big{
+    width:100%; min-height:var(--tap); border-radius:11px; border:1px solid var(--ink);
+    background:var(--ink); color:var(--ground); font-weight:600; font-size:15px; margin-top:14px;
+  }
+  .big.sec{background:transparent; color:var(--ink); border-color:var(--line-2)}
+  label.fld{display:block; font-size:12px; color:var(--ink-3); font-weight:600; margin:14px 0 6px; letter-spacing:.04em; text-transform:uppercase}
+  input[type="text"]{
+    width:100%; min-height:46px; border:1px solid var(--line); background:var(--panel);
+    color:var(--ink); border-radius:11px; padding:9px 13px; font:inherit;
+  }
+  .csvout{width:100%; min-height:170px; font-family:'IBM Plex Mono', monospace; font-size:11px; white-space:pre}
+  @media (prefers-reduced-motion: reduce){ *{transition:none !important; animation:none !important} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hrow">
+    <div class="grow">
+      <div class="site">Vanderbilt Recreation Center</div>
+      <div style="font-size:15px;font-weight:600">Encelium Baseline Survey</div>
+    </div>
+    <button class="iconbtn" id="btn-setup" aria-label="Export and settings" title="Export">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>
+    </button>
+    <button class="iconbtn" id="btn-rooms" aria-label="Room list" title="Rooms">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+  </div>
+  <div class="floors" id="floors"></div>
+  <div class="barwrap">
+    <div class="bar"><i id="bar"></i></div>
+    <div class="count" id="count">0 / 0</div>
+  </div>
+</header>
+
+<main><div class="wrap" id="wrap"></div></main>
+
+<footer>
+  <button class="nav" id="btn-prev" aria-label="Previous room">&larr;</button>
+  <button class="nav ghost" id="btn-same">Same as last</button>
+  <button class="nav primary" id="btn-next">Next room &rarr;</button>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  // Seed rooms read off the Encelium as-builts, sheets E1-C (first floor) and
+  // E2-B (second floor), Vanderbilt Recreation Center, rev 03-20-13. Partial --
+  // replace wholesale when the full drawing set arrives.
+  var SEED = [
+    ["1","100A","Vestibule"],["1","100B","Lobby / Prefunction"],["1","100C","Corridor"],
+    ["1","100CA","Corridor"],["1","100CB","Corridor"],["1","100D","Exit Lobby"],
+    ["1","100L","Lobby"],["1","100LA","Vestibule"],["1","101A","Control Desk"],
+    ["1","101B","Control"],["1","102","Gymnasium"],["1","102A","Storage"],
+    ["1","102B","Storage"],["1","104A","Electrical"],["1","104D","M Faculty Lockers"],
+    ["1","107","Janitor"],["1","108","Weight / Exercise"],["1","108A","Storage"],
+    ["1","108F","W Faculty Lockers"],["1","109","Elevator Machine"],["1","110","Janitor"],
+    ["1","111","Corridor"],["1","112AA","Storage"],["1","112C","Equipment Storage"],
+    ["1","112D","Equipment Storage"],["1","112E","Equipment Storage"],["1","112F","Equipment Storage"],
+    ["1","112G","Equipment Storage"],["1","112H","Equipment Storage"],["1","113","Laundry"],
+    ["1","114","Racquetball"],["1","115","Racquetball"],["1","116","Racquetball"],
+    ["1","117","Racquetball"],["1","118","Bowling"],["1","118A","Bowling Equipment"],
+    ["1","119A","Services / Receiving"],["1","119D","Storage"],["1","120","Lounge"],
+    ["1","120A","Vestibule"],["1","121","Wellness"],["1","122","Men's Toilet"],
+    ["1","123","Women's Toilet"],["1","124","Janitor"],["1","127","Reception"],
+    ["1","127A","Office"],["1","127B","Office"],["1","127C","Storage"],["1","127D","Office"],
+    ["1","127E","Office"],["1","127F","Conference Room"],["1","128","Storage"],
+    ["1","130","Multipurpose Room"],["1","131","Control"],["1","131A","Closet"],
+    ["1","132","Men's Toilet"],["1","133","Women's Toilet"],["1","134","Janitor"],
+    ["1","135","Storage"],["1","136","Training"],["1","137","Storage / Golf Sim"],
+    ["1","138","Training"],["1","139A","Storage"],["1","146","Family Locker"],
+    ["1","146B","H.C. Changing"],["1","146C","H.C. Changing"],["1","149","HP Storage"],
+    ["1","150","Weights"],["1","150A","Storage"],["1","151","Weights"],
+    ["1","100SB","Stair"],["1","100SC","Stair"],["1","100SE","Stair"],
+    ["2","200","Main Corridor"],["2","200C","Corridor"],["2","200D","Elevator"],
+    ["2","204A","Storage"],["2","205","Janitor"],["2","207","Mechanical"],
+    ["2","208","Corridor"],["2","209","Men Locker"],["2","210","Women Locker"],
+    ["2","211","Vestibule"],["2","212","Vestibule"],["2","213","Women's Toilet"],
+    ["2","214","Men's Toilet"],["2","216","Squash Court 1"],["2","217","Squash Court 2"],
+    ["2","227A","Connector"],["2","229","Multipurpose"],["2","235","Overlook"],
+    ["2","236","Mechanical"],["2","236A","Electrical"],["2","237","Multipurpose"],
+    ["2","237A","Storage"],["2","240","Corridor"],["2","250B","Multipurpose"],
+    ["2","251","Multipurpose"],["2","251A","Storage"],["2","252","Corridor"],
+    ["2","200SC","Stair"]
+  ];
+
+  var TYPES = {
+    "Corridor":168, "Stairwell":168, "Gymnasium":105, "Court":98, "Weight / fitness":105,
+    "Office":55, "Conference":50, "Reception":55, "Multipurpose":70, "Training":70,
+    "Locker room":112, "Restroom":112, "Lobby":119, "Storage":20, "Mechanical / electrical":10,
+    "Janitor":20, "Service":60, "Other":55
+  };
+  function guessType(name){
+    var n = name.toLowerCase();
+    if(/stair/.test(n)) return "Stairwell";
+    if(/corridor|vestibule|connector/.test(n)) return "Corridor";
+    if(/gymnasium/.test(n)) return "Gymnasium";
+    if(/racquetball|squash|bowling/.test(n)) return "Court";
+    if(/weight|exercise|wellness/.test(n)) return "Weight / fitness";
+    if(/conference/.test(n)) return "Conference";
+    if(/reception|control desk/.test(n)) return "Reception";
+    if(/office|control/.test(n)) return "Office";
+    if(/multipurpose|overlook/.test(n)) return "Multipurpose";
+    if(/training/.test(n)) return "Training";
+    if(/locker|changing/.test(n)) return "Locker room";
+    if(/toilet/.test(n)) return "Restroom";
+    if(/lobby|lounge/.test(n)) return "Lobby";
+    if(/janitor/.test(n)) return "Janitor";
+    if(/mechanical|electrical|elevator|closet/.test(n)) return "Mechanical / electrical";
+    if(/storage/.test(n)) return "Storage";
+    if(/laundry|services|receiving/.test(n)) return "Service";
+    return "Other";
+  }
+
+  var SENSORS = [
+    {v:"none",     t:"None",            s:"No occupancy sensor"},
+    {v:"SCP-0456", t:"PIR ceiling",     s:"SCP-0456 / SCP-1500"},
+    {v:"SCM-0500", t:"Multi-tech",      s:"SCM-0500 / 1000 / 2000"},
+    {v:"wall",     t:"Wall + override", s:"SW-UB-24 / PV-UB-24"},
+    {v:"unknown",  t:"Can't tell",      s:"Flag for follow-up", unk:true}
+  ];
+  var SCENARIOS = [
+    {v:"controls_only",        t:"Controls only",         s:"Fixtures stay"},
+    {v:"fixture_and_controls", t:"Fixture + controls",    s:"Both change"},
+    {v:"fixture_new_controls", t:"Fixture, new controls", s:"No controls before"}
+  ];
+  var YNU = [{v:"yes",t:"Yes"},{v:"no",t:"No"},{v:"unknown",t:"Can't tell",unk:true}];
+
+  var KEY = "vurec-survey-v1";
+  var rooms = SEED.map(function(r){ return {floor:r[0], num:r[1], name:r[2], type:guessType(r[2])}; });
+  var data = {}, meta = {by:"", lastExport:null};
+  var idx = 0, floor = "1";
+
+  function store(){
+    try{ localStorage.setItem(KEY, JSON.stringify({data:data, meta:meta})); }catch(e){}
+  }
+  function load(){
+    try{
+      var raw = localStorage.getItem(KEY);
+      if(raw){ var o = JSON.parse(raw); data = o.data || {}; if(o.meta){ meta.by = o.meta.by || ""; meta.lastExport = o.meta.lastExport || null; } }
+    }catch(e){ data = {}; }
+  }
+  function rec(num){
+    if(!data[num]){
+      var r = rooms.filter(function(x){return x.num===num;})[0];
+      data[num] = {scenario:null, watts:null, wattsUnknown:false, dimmable:null,
+                   sensor:null, photocell:null, burn:null, notes:"",
+                   type:(r ? r.type : "Other"), ts:null};
+    }
+    return data[num];
+  }
+  function touched(num){
+    var d = data[num]; if(!d) return 0;
+    var n = 0;
+    if(d.scenario) n++;
+    if(d.watts !== null || d.wattsUnknown) n++;
+    if(d.dimmable) n++;
+    if(d.sensor) n++;
+    if(d.photocell) n++;
+    if(d.burn !== null) n++;
+    return n;
+  }
+  function complete(num){ return touched(num) >= 6; }
+  function inFloor(){ return rooms.filter(function(r){ return r.floor === floor; }); }
+  function save(num){ var d = data[num]; if(d) d.ts = new Date().toISOString(); store(); }
+
+  function opt(o, cur, on){
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "opt" + (o.unk ? " unk" : "");
+    b.setAttribute("aria-pressed", String(cur === o.v));
+    var t = document.createElement("b"); t.textContent = o.t; b.appendChild(t);
+    if(o.s){ var s = document.createElement("span"); s.textContent = o.s; b.appendChild(s); }
+    b.addEventListener("click", function(){ on(cur === o.v ? null : o.v); });
+    return b;
+  }
+  function group(legend, hint, opts, cur, cls, on){
+    var fs = document.createElement("fieldset");
+    var lg = document.createElement("legend"); lg.textContent = legend; fs.appendChild(lg);
+    if(hint){ var h = document.createElement("div"); h.className = "hint"; h.textContent = hint; fs.appendChild(h); }
+    var g = document.createElement("div"); g.className = "opts " + cls;
+    opts.forEach(function(o){ g.appendChild(opt(o, cur, on)); });
+    fs.appendChild(g); return fs;
+  }
+
+  function render(){
+    var list = inFloor();
+    if(idx >= list.length) idx = 0;
+    var room = list[idx], d = rec(room.num);
+    var wrap = document.getElementById("wrap");
+    wrap.innerHTML = "";
+
+    var head = document.createElement("div"); head.className = "roomhead";
+    var left = document.createElement("div");
+    var num = document.createElement("div"); num.className = "rnum mono"; num.textContent = room.num;
+    var nm = document.createElement("div"); nm.className = "rname"; nm.textContent = room.name;
+    left.appendChild(num); left.appendChild(nm); head.appendChild(left);
+    wrap.appendChild(head);
+
+    var chip = document.createElement("button");
+    chip.className = "chip"; chip.type = "button";
+    chip.textContent = d.type + "  ·  change";
+    chip.addEventListener("click", function(){
+      var keys = Object.keys(TYPES), i = keys.indexOf(d.type);
+      d.type = keys[(i + 1) % keys.length];
+      save(room.num); render();
+    });
+    wrap.appendChild(chip);
+
+    wrap.appendChild(group("Retrofit scenario", null, SCENARIOS, d.scenario, "",
+      function(v){ d.scenario = v; save(room.num); render(); }));
+
+    var fsW = document.createElement("fieldset");
+    var lgW = document.createElement("legend"); lgW.textContent = "Existing fixture load"; fsW.appendChild(lgW);
+    var hW = document.createElement("div"); hW.className = "hint";
+    hW.textContent = "Total connected watts for the room, as it is today.";
+    fsW.appendChild(hW);
+    var row = document.createElement("div"); row.className = "numrow";
+    var inp = document.createElement("input");
+    inp.type = "number"; inp.inputMode = "numeric"; inp.min = "0"; inp.step = "1";
+    inp.id = "watts"; inp.placeholder = "0";
+    inp.value = (d.watts === null ? "" : d.watts);
+    inp.disabled = !!d.wattsUnknown;
+    inp.addEventListener("input", function(){
+      d.watts = inp.value === "" ? null : Number(inp.value); save(room.num); paintProgress();
+    });
+    var u = document.createElement("div"); u.className = "unit"; u.textContent = "watts";
+    row.appendChild(inp); row.appendChild(u); fsW.appendChild(row);
+    var unkw = document.createElement("div"); unkw.className = "opts"; unkw.style.marginTop = "8px";
+    unkw.appendChild(opt({v:"u", t:"Can't tell - needs ladder or panel access", unk:true},
+      d.wattsUnknown ? "u" : null, function(v){
+        d.wattsUnknown = !!v; if(v) d.watts = null; save(room.num); render();
+      }));
+    fsW.appendChild(unkw);
+    wrap.appendChild(fsW);
+
+    wrap.appendChild(group("Could the existing dim?",
+      "If it could not dim, every kWh of dimming counts as savings.",
+      YNU, d.dimmable, "three", function(v){ d.dimmable = v; save(room.num); render(); }));
+
+    wrap.appendChild(group("Existing occupancy sensor", "Match the housing, not the part number.",
+      SENSORS, d.sensor, "", function(v){ d.sensor = v; save(room.num); render(); }));
+
+    wrap.appendChild(group("Existing photocell", "Daylight sensor - PHO-700 in this system.",
+      YNU, d.photocell, "three", function(v){ d.photocell = v; save(room.num); render(); }));
+
+    var fsB = document.createElement("fieldset");
+    var lgB = document.createElement("legend"); lgB.textContent = "Assumed burn hours"; fsB.appendChild(lgB);
+    var hB = document.createElement("div"); hB.className = "hint";
+    hB.textContent = "Hours per week the lights were on before the retrofit.";
+    fsB.appendChild(hB);
+    var rowB = document.createElement("div"); rowB.className = "numrow";
+    var inpB = document.createElement("input");
+    inpB.type = "number"; inpB.inputMode = "numeric"; inpB.min = "0"; inpB.max = "168"; inpB.step = "1";
+    inpB.id = "burn"; inpB.placeholder = String(TYPES[d.type] || 55);
+    inpB.value = (d.burn === null ? "" : d.burn);
+    inpB.addEventListener("input", function(){
+      d.burn = inpB.value === "" ? null : Number(inpB.value); save(room.num); paintProgress();
+    });
+    var uB = document.createElement("div"); uB.className = "unit"; uB.textContent = "hrs / wk";
+    rowB.appendChild(inpB); rowB.appendChild(uB); fsB.appendChild(rowB);
+    var useDef = document.createElement("button");
+    useDef.type = "button"; useDef.className = "chip"; useDef.style.marginTop = "8px";
+    useDef.textContent = "Use " + (TYPES[d.type] || 55) + " for " + d.type;
+    useDef.addEventListener("click", function(){ d.burn = TYPES[d.type] || 55; save(room.num); render(); });
+    fsB.appendChild(useDef);
+    wrap.appendChild(fsB);
+
+    var fsN = document.createElement("fieldset");
+    var lgN = document.createElement("legend"); lgN.textContent = "Notes"; fsN.appendChild(lgN);
+    var ta = document.createElement("textarea");
+    ta.id = "notes"; ta.value = d.notes || "";
+    ta.placeholder = "Anything the next person would need to know.";
+    ta.addEventListener("input", function(){ d.notes = ta.value; save(room.num); });
+    fsN.appendChild(ta); wrap.appendChild(fsN);
+
+    document.getElementById("btn-prev").disabled = (idx === 0);
+    document.getElementById("btn-same").disabled = (idx === 0);
+    document.getElementById("btn-next").textContent =
+      (idx === list.length - 1) ? "Last room on floor" : "Next room →";
+    paintProgress();
+  }
+
+  function paintProgress(){
+    var list = inFloor();
+    var done = list.filter(function(r){ return complete(r.num); }).length;
+    document.getElementById("count").textContent = done + " / " + list.length;
+    document.getElementById("bar").style.width = (list.length ? (done / list.length * 100) : 0) + "%";
+  }
+  function paintFloors(){
+    var f = document.getElementById("floors"); f.innerHTML = "";
+    var seen = [];
+    rooms.forEach(function(r){ if(seen.indexOf(r.floor) < 0) seen.push(r.floor); });
+    seen.forEach(function(fl){
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "floor";
+      b.setAttribute("aria-pressed", String(fl === floor));
+      b.textContent = "Floor " + fl + " · " + rooms.filter(function(r){return r.floor===fl;}).length;
+      b.addEventListener("click", function(){ floor = fl; idx = 0; paintFloors(); render(); });
+      f.appendChild(b);
+    });
+  }
+
+  function openDrawer(){
+    var scrim = document.createElement("button");
+    scrim.className = "scrim"; scrim.setAttribute("aria-label", "Close room list");
+    var dr = document.createElement("div");
+    dr.className = "drawer"; dr.setAttribute("role", "dialog"); dr.setAttribute("aria-label", "Rooms on this floor");
+    var hd = document.createElement("div"); hd.className = "dhead";
+    var t = document.createElement("b"); t.textContent = "Floor " + floor + " rooms"; t.style.flex = "1";
+    var x = document.createElement("button"); x.className = "iconbtn"; x.textContent = "✕"; x.setAttribute("aria-label","Close");
+    hd.appendChild(t); hd.appendChild(x);
+    var ls = document.createElement("div"); ls.className = "dlist";
+    inFloor().forEach(function(r, i){
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "rrow";
+      if(i === idx) b.setAttribute("aria-current", "true");
+      var dot = document.createElement("span");
+      var n = touched(r.num);
+      dot.className = "dot" + (complete(r.num) ? " done" : (n > 0 ? " part" : ""));
+      var nn = document.createElement("span"); nn.className = "n mono"; nn.textContent = r.num;
+      var tt = document.createElement("span"); tt.className = "t"; tt.textContent = r.name;
+      b.appendChild(dot); b.appendChild(nn); b.appendChild(tt);
+      b.addEventListener("click", function(){ idx = i; close(); render(); });
+      ls.appendChild(b);
+    });
+    dr.appendChild(hd); dr.appendChild(ls);
+    document.body.appendChild(scrim); document.body.appendChild(dr);
+    function close(){ scrim.remove(); dr.remove(); }
+    scrim.addEventListener("click", close);
+    x.addEventListener("click", close);
+  }
+
+  function csv(){
+    var head = ["building","floor","room_number","room_name","space_type","scenario",
+                "existing_connected_w","watts_unknown","existing_dimmable","existing_occ_model",
+                "existing_had_photocell","assumed_burn_hours_wk","notes","surveyed_by","surveyed_ts"];
+    var out = [head.join(",")];
+    rooms.forEach(function(r){
+      var d = data[r.num];
+      if(!d || touched(r.num) === 0) return;
+      var row = ["Vanderbilt Recreation Center", r.floor, r.num, r.name, d.type,
+                 d.scenario || "", d.wattsUnknown ? "" : (d.watts === null ? "" : d.watts),
+                 d.wattsUnknown ? "true" : "", d.dimmable || "", d.sensor || "",
+                 d.photocell || "", d.burn === null ? "" : d.burn,
+                 d.notes || "", meta.by || "", d.ts || ""];
+      out.push(row.map(function(v){
+        v = String(v);
+        return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+      }).join(","));
+    });
+    return out.join("\n");
+  }
+
+  function openSheet(){
+    var scrim = document.createElement("button");
+    scrim.className = "scrim"; scrim.setAttribute("aria-label", "Close");
+    var sh = document.createElement("div");
+    sh.className = "sheet"; sh.setAttribute("role", "dialog"); sh.setAttribute("aria-label", "Export");
+    var body = document.createElement("div"); body.className = "sbody";
+
+    var captured = rooms.filter(function(r){ return touched(r.num) > 0; }).length;
+    var doneN = rooms.filter(function(r){ return complete(r.num); }).length;
+    var unknowns = rooms.filter(function(r){
+      var d = data[r.num]; if(!d) return false;
+      return d.wattsUnknown || d.dimmable === "unknown" || d.sensor === "unknown" || d.photocell === "unknown";
+    }).length;
+
+    var h2 = document.createElement("h2"); h2.textContent = "Send survey";
+    var p = document.createElement("p"); p.textContent = "The CSV loads straight into mwLink - no retyping.";
+    body.appendChild(h2); body.appendChild(p);
+    [["Rooms complete", doneN + " of " + rooms.length],
+     ["Rooms started", String(captured)],
+     ["Rooms with a “can’t tell”", String(unknowns)]].forEach(function(pair){
+      var s = document.createElement("div"); s.className = "stat";
+      var a = document.createElement("span"); a.textContent = pair[0];
+      var b = document.createElement("b"); b.textContent = pair[1];
+      s.appendChild(a); s.appendChild(b); body.appendChild(s);
+    });
+
+    var warn = document.createElement("div");
+    warn.className = "warn" + (meta.lastExport ? " ok" : "");
+    warn.textContent = meta.lastExport
+      ? "Last sent " + new Date(meta.lastExport).toLocaleString() + "."
+      : "Not sent yet. Send at the end of every floor - phone storage can be cleared, and this data cannot be re-collected once fixtures come out.";
+    body.appendChild(warn);
+
+    var lb = document.createElement("label"); lb.className = "fld"; lb.textContent = "Surveyor";
+    lb.setAttribute("for", "byname");
+    var by = document.createElement("input");
+    by.type = "text"; by.id = "byname"; by.placeholder = "Initials or name"; by.value = meta.by || "";
+    by.addEventListener("input", function(){ meta.by = by.value; store(); });
+    body.appendChild(lb); body.appendChild(by);
+
+    var name = "vurec-survey-" + new Date().toISOString().slice(0,10) + ".csv";
+
+    if(navigator.share){
+      var bs = document.createElement("button");
+      bs.className = "big"; bs.textContent = "Send by email or Teams";
+      bs.addEventListener("click", function(){
+        var file = new File([csv()], name, {type:"text/csv"});
+        var payload = (navigator.canShare && navigator.canShare({files:[file]}))
+          ? {files:[file], title:"Encelium baseline survey"}
+          : {title:"Encelium baseline survey", text:csv()};
+        navigator.share(payload).then(function(){ markSent(warn); }).catch(function(){});
+      });
+      body.appendChild(bs);
+    }
+
+    var bd = document.createElement("a");
+    bd.className = "big sec"; bd.textContent = "Download CSV";
+    bd.style.display = "block"; bd.style.textAlign = "center"; bd.style.lineHeight = "52px";
+    bd.style.textDecoration = "none";
+    bd.href = URL.createObjectURL(new Blob([csv()], {type:"text/csv"}));
+    bd.download = name;
+    bd.addEventListener("click", function(){ setTimeout(function(){ markSent(warn); }, 400); });
+    body.appendChild(bd);
+
+    var b2 = document.createElement("button");
+    b2.className = "big sec"; b2.textContent = "Show CSV to copy";
+    b2.addEventListener("click", function(){
+      var ta = document.createElement("textarea");
+      ta.className = "csvout"; ta.readOnly = true; ta.value = csv(); ta.style.marginTop = "12px";
+      b2.replaceWith(ta); ta.focus(); ta.select();
+    });
+    body.appendChild(b2);
+
+    sh.appendChild(body);
+    document.body.appendChild(scrim); document.body.appendChild(sh);
+    function close(){ scrim.remove(); sh.remove(); }
+    scrim.addEventListener("click", close);
+  }
+  function markSent(warn){
+    meta.lastExport = Date.now(); store();
+    warn.className = "warn ok";
+    warn.textContent = "Last sent " + new Date(meta.lastExport).toLocaleString() + ".";
+  }
+
+  document.getElementById("btn-rooms").addEventListener("click", openDrawer);
+  document.getElementById("btn-setup").addEventListener("click", openSheet);
+  document.getElementById("btn-prev").addEventListener("click", function(){
+    if(idx > 0){ idx--; render(); document.querySelector("main").scrollTop = 0; }
+  });
+  document.getElementById("btn-next").addEventListener("click", function(){
+    if(idx < inFloor().length - 1){ idx++; render(); document.querySelector("main").scrollTop = 0; }
+  });
+  document.getElementById("btn-same").addEventListener("click", function(){
+    var list = inFloor();
+    if(idx === 0) return;
+    var prev = data[list[idx-1].num]; if(!prev) return;
+    var cur = rec(list[idx].num);
+    cur.scenario = prev.scenario; cur.watts = prev.watts; cur.wattsUnknown = prev.wattsUnknown;
+    cur.dimmable = prev.dimmable; cur.sensor = prev.sensor; cur.photocell = prev.photocell;
+    cur.burn = prev.burn;
+    save(list[idx].num); render();
+  });
+
+  load(); paintFloors(); render();
+
+  if("serviceWorker" in navigator){
+    window.addEventListener("load", function(){
+      navigator.serviceWorker.register("sw.js").catch(function(){});
+    });
+  }
+})();
+</script>
+</body>
+</html>
