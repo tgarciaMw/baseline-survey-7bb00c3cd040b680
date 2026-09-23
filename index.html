@@ -174,6 +174,30 @@
     width:100%; min-height:46px; border:1px solid var(--line); background:var(--panel);
     color:var(--ink); border-radius:11px; padding:9px 13px; font:inherit;
   }
+  .fxrow{
+    display:flex; align-items:center; gap:10px; padding:10px 12px;
+    border:1px solid var(--line); background:var(--panel); border-radius:11px;
+  }
+  .fxlab{flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.25}
+  .fxlab b{font-size:15px; font-weight:600}
+  .fxlab span{font-size:11.5px; color:var(--ink-3)}
+  .ctr{display:flex; align-items:center; gap:2px; flex:none}
+  .step{
+    width:40px; height:40px; border:1px solid var(--line-2); background:var(--panel-2);
+    border-radius:9px; font-size:19px; font-weight:600; line-height:1; display:grid; place-items:center;
+  }
+  .ctr .num{min-width:34px; text-align:center; font-size:17px; font-weight:600}
+  .wcell{
+    flex:none; width:92px; min-height:44px; border:1px solid var(--line); background:var(--ground);
+    color:var(--ink); border-radius:9px; padding:8px 10px; font-size:16px; font-weight:600;
+    text-align:right; font-family:'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric:tabular-nums;
+  }
+  .total{
+    margin-top:10px; padding:10px 13px; border-radius:10px; background:var(--bus-soft);
+    border:1px solid var(--bus); font-size:14px; color:var(--ink);
+  }
+  .total b{font-size:17px; font-weight:600}
+  .total.unkline{background:var(--unknown-soft); border-color:var(--unknown)}
   .csvout{width:100%; min-height:170px; font-family:'IBM Plex Mono', monospace; font-size:11px; white-space:pre}
   @media (prefers-reduced-motion: reduce){ *{transition:none !important; animation:none !important} }
 </style>
@@ -297,21 +321,23 @@
   var KEY = "vurec-survey-v1";
   var rooms = SEED.map(function(r){ return {floor:r[0], num:r[1], name:r[2], type:guessType(r[2])}; });
   var data = {}, meta = {by:"", lastExport:null};
+  var ftypes = {};   // code -> {desc, size, watts}  shared across all rooms
   var idx = 0, floor = "1";
 
   function store(){
-    try{ localStorage.setItem(KEY, JSON.stringify({data:data, meta:meta})); }catch(e){}
+    try{ localStorage.setItem(KEY, JSON.stringify({data:data, meta:meta, ftypes:ftypes})); }catch(e){}
   }
   function load(){
     try{
       var raw = localStorage.getItem(KEY);
-      if(raw){ var o = JSON.parse(raw); data = o.data || {}; if(o.meta){ meta.by = o.meta.by || ""; meta.lastExport = o.meta.lastExport || null; } }
+      if(raw){ var o = JSON.parse(raw); data = o.data || {}; ftypes = o.ftypes || {};
+        if(o.meta){ meta.by = o.meta.by || ""; meta.lastExport = o.meta.lastExport || null; } }
     }catch(e){ data = {}; }
   }
   function rec(num){
     if(!data[num]){
       var r = rooms.filter(function(x){return x.num===num;})[0];
-      data[num] = {scenario:null, watts:null, wattsUnknown:false, dimmable:null,
+      data[num] = {scenario:null, fixtures:[], wattsUnknown:false, dimmable:null,
                    sensor:null, photocell:null, burn:null, notes:"",
                    type:(r ? r.type : "Other"), ts:null};
     }
@@ -321,7 +347,7 @@
     var d = data[num]; if(!d) return 0;
     var n = 0;
     if(d.scenario) n++;
-    if(d.watts !== null || d.wattsUnknown) n++;
+    if((d.fixtures && d.fixtures.length) || d.wattsUnknown) n++;
     if(d.dimmable) n++;
     if(d.sensor) n++;
     if(d.photocell) n++;
@@ -378,25 +404,78 @@
       function(v){ d.scenario = v; save(room.num); render(); }));
 
     var fsW = document.createElement("fieldset");
-    var lgW = document.createElement("legend"); lgW.textContent = "Existing fixture load"; fsW.appendChild(lgW);
+    var lgW = document.createElement("legend"); lgW.textContent = "Fixtures in this room"; fsW.appendChild(lgW);
     var hW = document.createElement("div"); hW.className = "hint";
-    hW.textContent = "Total connected watts for the room, as it is today.";
+    hW.textContent = "Add each type and how many. Wattage comes from the fixture table, so you never key it here.";
     fsW.appendChild(hW);
-    var row = document.createElement("div"); row.className = "numrow";
-    var inp = document.createElement("input");
-    inp.type = "number"; inp.inputMode = "numeric"; inp.min = "0"; inp.step = "1";
-    inp.id = "watts"; inp.placeholder = "0";
-    inp.value = (d.watts === null ? "" : d.watts);
-    inp.disabled = !!d.wattsUnknown;
-    inp.addEventListener("input", function(){
-      d.watts = inp.value === "" ? null : Number(inp.value); save(room.num); paintProgress();
+
+    var flist = document.createElement("div"); flist.className = "opts"; flist.style.gap = "8px";
+    (d.fixtures || []).forEach(function(fx, i){
+      var t = ftypes[fx.code] || {};
+      var rowf = document.createElement("div"); rowf.className = "fxrow";
+      var lab = document.createElement("div"); lab.className = "fxlab";
+      var code = document.createElement("b"); code.className = "mono"; code.textContent = fx.code;
+      var desc = document.createElement("span");
+      desc.textContent = (t.size || "type not described") + (t.watts ? "  \u00b7  " + t.watts + " W ea" : "  \u00b7  W unknown");
+      lab.appendChild(code); lab.appendChild(desc);
+      var ctr = document.createElement("div"); ctr.className = "ctr";
+      var minus = document.createElement("button"); minus.type = "button"; minus.className = "step"; minus.textContent = "\u2212";
+      minus.setAttribute("aria-label", "One fewer " + fx.code);
+      var n = document.createElement("span"); n.className = "mono num"; n.textContent = fx.count;
+      var plus = document.createElement("button"); plus.type = "button"; plus.className = "step"; plus.textContent = "+";
+      plus.setAttribute("aria-label", "One more " + fx.code);
+      minus.addEventListener("click", function(){
+        fx.count--; if(fx.count <= 0) d.fixtures.splice(i,1);
+        save(room.num); render();
+      });
+      plus.addEventListener("click", function(){ fx.count++; save(room.num); render(); });
+      ctr.appendChild(minus); ctr.appendChild(n); ctr.appendChild(plus);
+      rowf.appendChild(lab); rowf.appendChild(ctr);
+      flist.appendChild(rowf);
     });
-    var u = document.createElement("div"); u.className = "unit"; u.textContent = "watts";
-    row.appendChild(inp); row.appendChild(u); fsW.appendChild(row);
-    var unkw = document.createElement("div"); unkw.className = "opts"; unkw.style.marginTop = "8px";
-    unkw.appendChild(opt({v:"u", t:"Can't tell - needs ladder or panel access", unk:true},
+    fsW.appendChild(flist);
+
+    var addf = document.createElement("button");
+    addf.type = "button"; addf.className = "chip"; addf.style.marginTop = "10px";
+    addf.textContent = "+ Add fixture type";
+    addf.addEventListener("click", function(){ pickFixture(room.num); });
+    fsW.appendChild(addf);
+
+    var needW = Object.keys(ftypes).filter(function(c){
+      return ftypes[c].watts === null || ftypes[c].watts === undefined;
+    }).length;
+    if(Object.keys(ftypes).length){
+      var tbl = document.createElement("button");
+      tbl.type = "button"; tbl.className = "chip";
+      tbl.style.marginTop = "10px"; tbl.style.marginLeft = "8px";
+      tbl.textContent = needW ? "Fixture table \u00b7 " + needW + " need watts" : "Fixture table";
+      tbl.addEventListener("click", openTypes);
+      fsW.appendChild(tbl);
+    }
+
+    var tot = roomWatts(room.num);
+    var totd = document.createElement("div"); totd.className = "total";
+    if(d.wattsUnknown){
+      totd.innerHTML = "";
+      totd.textContent = "Marked can\u2019t tell \u2014 no wattage for this room";
+      totd.classList.add("unkline");
+    } else if(!(d.fixtures || []).length){
+      totd.textContent = "No fixtures added yet";
+    } else if(tot === null){
+      totd.textContent = "Counts recorded \u2014 wattage pending on the fixture table";
+      totd.classList.add("unkline");
+    } else {
+      totd.innerHTML = "";
+      var tv = document.createElement("b"); tv.className = "mono"; tv.textContent = tot + " W";
+      totd.appendChild(tv);
+      totd.appendChild(document.createTextNode(" connected in this room"));
+    }
+    fsW.appendChild(totd);
+
+    var unkw = document.createElement("div"); unkw.className = "opts"; unkw.style.marginTop = "10px";
+    unkw.appendChild(opt({v:"u", t:"Can't tell - no access to the fixtures", unk:true},
       d.wattsUnknown ? "u" : null, function(v){
-        d.wattsUnknown = !!v; if(v) d.watts = null; save(room.num); render();
+        d.wattsUnknown = !!v; if(v) d.fixtures = []; save(room.num); render();
       }));
     fsW.appendChild(unkw);
     wrap.appendChild(fsW);
@@ -468,6 +547,164 @@
     });
   }
 
+
+  // ---- fixture types -------------------------------------------------------
+  var SIZES = ["2x4 troffer","2x2 troffer","1x4 troffer","1x4 strip","8ft strip",
+               "Round can / downlight","Square downlight","Linear pendant",
+               "High bay","Wall pack","Sconce","Track","Exit / emergency","Other"];
+
+  function roomWatts(num){
+    var d = data[num]; if(!d || !d.fixtures || !d.fixtures.length) return null;
+    var total = 0, known = true;
+    d.fixtures.forEach(function(fx){
+      var t = ftypes[fx.code];
+      if(!t || t.watts === null || t.watts === undefined || t.watts === "") known = false;
+      else total += Number(t.watts) * fx.count;
+    });
+    return known ? total : null;
+  }
+  function typesUsed(){
+    var used = {};
+    Object.keys(data).forEach(function(num){
+      (data[num].fixtures || []).forEach(function(fx){ used[fx.code] = (used[fx.code]||0) + fx.count; });
+    });
+    return used;
+  }
+
+  function pickFixture(num){
+    var d = rec(num);
+    var scrim = document.createElement("button");
+    scrim.className = "scrim"; scrim.setAttribute("aria-label","Close");
+    var sh = document.createElement("div"); sh.className = "sheet";
+    sh.setAttribute("role","dialog"); sh.setAttribute("aria-label","Add fixture type");
+    var body = document.createElement("div"); body.className = "sbody";
+    var h = document.createElement("h2"); h.textContent = "Add fixture type";
+    var p = document.createElement("p");
+    p.textContent = "Use the code off the plans where there is one - the same type repeats all over the building.";
+    body.appendChild(h); body.appendChild(p);
+    function close(){ scrim.remove(); sh.remove(); }
+
+    var codes = Object.keys(ftypes).sort();
+    if(codes.length){
+      var g = document.createElement("div"); g.className = "opts";
+      codes.forEach(function(c){
+        var t = ftypes[c];
+        var already = (d.fixtures||[]).some(function(f){ return f.code === c; });
+        var b = document.createElement("button");
+        b.type = "button"; b.className = "opt"; b.disabled = already;
+        var bb = document.createElement("b");
+        bb.textContent = c + (already ? "  - already added" : "");
+        var ss = document.createElement("span");
+        ss.textContent = (t.size || "no size") + "  -  " + (t.watts ? t.watts + " W ea" : "W pending");
+        b.appendChild(bb); b.appendChild(ss);
+        b.addEventListener("click", function(){
+          d.fixtures = d.fixtures || [];
+          d.fixtures.push({code:c, count:1});
+          d.wattsUnknown = false;
+          save(num); close(); render();
+        });
+        g.appendChild(b);
+      });
+      body.appendChild(g);
+    }
+
+    var lb1 = document.createElement("label"); lb1.className = "fld";
+    lb1.textContent = "New type - code from the plans"; lb1.setAttribute("for","newcode");
+    var c1 = document.createElement("input"); c1.type = "text"; c1.id = "newcode";
+    c1.placeholder = "A1"; c1.autocapitalize = "characters";
+    var lb2 = document.createElement("label"); lb2.className = "fld"; lb2.textContent = "Nominal size";
+    var sel = document.createElement("div"); sel.className = "opts two";
+    var chosen = null;
+    SIZES.forEach(function(sz){
+      var b = document.createElement("button"); b.type = "button"; b.className = "opt";
+      b.setAttribute("aria-pressed","false");
+      var bb = document.createElement("b"); bb.textContent = sz; b.appendChild(bb);
+      b.addEventListener("click", function(){
+        chosen = (chosen === sz) ? null : sz;
+        Array.prototype.forEach.call(sel.children, function(x){
+          x.setAttribute("aria-pressed", String(x.firstChild.textContent === chosen));
+        });
+      });
+      sel.appendChild(b);
+    });
+    var lb3 = document.createElement("label"); lb3.className = "fld";
+    lb3.textContent = "Watts each - leave blank if not known yet";
+    lb3.setAttribute("for","newwatts");
+    var c3 = document.createElement("input"); c3.type = "number"; c3.id = "newwatts";
+    c3.inputMode = "numeric"; c3.min = "0"; c3.placeholder = "fill in later from the schedule";
+    var add = document.createElement("button");
+    add.className = "big"; add.textContent = "Add type and put one in this room";
+    add.addEventListener("click", function(){
+      var code = (c1.value || "").trim().toUpperCase();
+      if(!code){ c1.focus(); return; }
+      ftypes[code] = {size: chosen || (ftypes[code] ? ftypes[code].size : ""),
+                      watts: c3.value === "" ? (ftypes[code] ? ftypes[code].watts : null) : Number(c3.value)};
+      d.fixtures = d.fixtures || [];
+      if(!d.fixtures.some(function(f){ return f.code === code; })) d.fixtures.push({code:code, count:1});
+      d.wattsUnknown = false;
+      save(num); close(); render();
+    });
+    body.appendChild(lb1); body.appendChild(c1);
+    body.appendChild(lb2); body.appendChild(sel);
+    body.appendChild(lb3); body.appendChild(c3);
+    body.appendChild(add);
+    sh.appendChild(body);
+    document.body.appendChild(scrim); document.body.appendChild(sh);
+    scrim.addEventListener("click", close);
+  }
+
+  function openTypes(){
+    var scrim = document.createElement("button");
+    scrim.className = "scrim"; scrim.setAttribute("aria-label","Close");
+    var sh = document.createElement("div"); sh.className = "sheet";
+    sh.setAttribute("role","dialog"); sh.setAttribute("aria-label","Fixture table");
+    var body = document.createElement("div"); body.className = "sbody";
+    var h = document.createElement("h2"); h.textContent = "Fixture table";
+    var p = document.createElement("p");
+    p.textContent = "One wattage per type, entered once. It fills in every room that uses it.";
+    body.appendChild(h); body.appendChild(p);
+    var used = typesUsed();
+    var codes = Object.keys(ftypes).sort();
+    if(!codes.length){
+      var none = document.createElement("div"); none.className = "warn";
+      none.textContent = "No fixture types yet. Add the first one from any room.";
+      body.appendChild(none);
+    }
+    codes.forEach(function(c){
+      var t = ftypes[c];
+      var row = document.createElement("div"); row.className = "fxrow";
+      var lab = document.createElement("div"); lab.className = "fxlab";
+      var b = document.createElement("b"); b.className = "mono"; b.textContent = c;
+      var sp = document.createElement("span");
+      sp.textContent = (t.size || "no size") + "  -  " + (used[c] || 0) + " counted";
+      lab.appendChild(b); lab.appendChild(sp);
+      var wi = document.createElement("input");
+      wi.type = "number"; wi.inputMode = "numeric"; wi.min = "0"; wi.className = "wcell";
+      wi.setAttribute("aria-label", "Watts each for type " + c);
+      wi.value = (t.watts === null || t.watts === undefined) ? "" : t.watts;
+      wi.placeholder = "W";
+      wi.addEventListener("input", function(){
+        t.watts = wi.value === "" ? null : Number(wi.value); store();
+      });
+      row.appendChild(lab); row.appendChild(wi);
+      body.appendChild(row);
+    });
+    var missing = codes.filter(function(c){
+      return ftypes[c].watts === null || ftypes[c].watts === undefined;
+    });
+    var w = document.createElement("div");
+    w.className = "warn" + (missing.length ? "" : " ok");
+    w.textContent = missing.length
+      ? missing.length + " type" + (missing.length>1?"s":"") + " still need a wattage: " +
+        missing.join(", ") + ". Room totals stay blank until these are filled."
+      : "Every type has a wattage. Room totals are complete.";
+    body.appendChild(w);
+    sh.appendChild(body);
+    document.body.appendChild(scrim); document.body.appendChild(sh);
+    function close(){ scrim.remove(); sh.remove(); }
+    scrim.addEventListener("click", close);
+  }
+
   function openDrawer(){
     var scrim = document.createElement("button");
     scrim.className = "scrim"; scrim.setAttribute("aria-label", "Close room list");
@@ -500,17 +737,33 @@
 
   function csv(){
     var head = ["building","floor","room_number","room_name","space_type","scenario",
-                "existing_connected_w","watts_unknown","existing_dimmable","existing_occ_model",
+                "existing_connected_w","watts_unknown","fixtures","existing_dimmable","existing_occ_model",
                 "existing_had_photocell","assumed_burn_hours_wk","notes","surveyed_by","surveyed_ts"];
     var out = [head.join(",")];
     rooms.forEach(function(r){
       var d = data[r.num];
       if(!d || touched(r.num) === 0) return;
+      var w = roomWatts(r.num);
+      var fx = (d.fixtures || []).map(function(f){ return f.code + ":" + f.count; }).join("|");
       var row = ["Vanderbilt Recreation Center", r.floor, r.num, r.name, d.type,
-                 d.scenario || "", d.wattsUnknown ? "" : (d.watts === null ? "" : d.watts),
-                 d.wattsUnknown ? "true" : "", d.dimmable || "", d.sensor || "",
+                 d.scenario || "", d.wattsUnknown ? "" : (w === null ? "" : w),
+                 d.wattsUnknown ? "true" : "", fx, d.dimmable || "", d.sensor || "",
                  d.photocell || "", d.burn === null ? "" : d.burn,
                  d.notes || "", meta.by || "", d.ts || ""];
+      out.push(row.map(function(v){
+        v = String(v);
+        return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+      }).join(","));
+    });
+    return out.join("\n");
+  }
+
+  function fixtureCsv(){
+    var used = typesUsed();
+    var out = ["fixture_code,nominal_size,watts_each,count_surveyed"];
+    Object.keys(ftypes).sort().forEach(function(c){
+      var t = ftypes[c];
+      var row = [c, t.size || "", (t.watts === null || t.watts === undefined) ? "" : t.watts, used[c] || 0];
       out.push(row.map(function(v){
         v = String(v);
         return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
@@ -536,9 +789,15 @@
     var h2 = document.createElement("h2"); h2.textContent = "Send survey";
     var p = document.createElement("p"); p.textContent = "The CSV loads straight into mwLink - no retyping.";
     body.appendChild(h2); body.appendChild(p);
+    var tcodes = Object.keys(ftypes);
+    var needWatts = tcodes.filter(function(c){
+      return ftypes[c].watts === null || ftypes[c].watts === undefined;
+    });
     [["Rooms complete", doneN + " of " + rooms.length],
      ["Rooms started", String(captured)],
-     ["Rooms with a “can’t tell”", String(unknowns)]].forEach(function(pair){
+     ["Rooms with a “can’t tell”", String(unknowns)],
+     ["Fixture types", tcodes.length + (needWatts.length ? " (" + needWatts.length + " need watts)" : "")]
+    ].forEach(function(pair){
       var s = document.createElement("div"); s.className = "stat";
       var a = document.createElement("span"); a.textContent = pair[0];
       var b = document.createElement("b"); b.textContent = pair[1];
@@ -566,22 +825,45 @@
       bs.className = "big"; bs.textContent = "Send by email or Teams";
       bs.addEventListener("click", function(){
         var file = new File([csv()], name, {type:"text/csv"});
-        var payload = (navigator.canShare && navigator.canShare({files:[file]}))
-          ? {files:[file], title:"Encelium baseline survey"}
-          : {title:"Encelium baseline survey", text:csv()};
+        var ffile = new File([fixtureCsv()],
+          "vurec-fixture-types-" + new Date().toISOString().slice(0,10) + ".csv", {type:"text/csv"});
+        var payload = (navigator.canShare && navigator.canShare({files:[file, ffile]}))
+          ? {files:[file, ffile], title:"Encelium baseline survey"}
+          : ((navigator.canShare && navigator.canShare({files:[file]}))
+              ? {files:[file], title:"Encelium baseline survey"}
+              : {title:"Encelium baseline survey", text:csv()});
         navigator.share(payload).then(function(){ markSent(warn); }).catch(function(){});
       });
       body.appendChild(bs);
     }
 
+    if(needWatts.length){
+      var wt = document.createElement("div"); wt.className = "warn";
+      wt.textContent = "Wattage missing for " + needWatts.join(", ") +
+        ". Those rooms export with a blank total until the fixture table is filled.";
+      body.appendChild(wt);
+      var ot = document.createElement("button");
+      ot.className = "big sec"; ot.textContent = "Open fixture table";
+      ot.addEventListener("click", function(){ close(); openTypes(); });
+      body.appendChild(ot);
+    }
+
     var bd = document.createElement("a");
-    bd.className = "big sec"; bd.textContent = "Download CSV";
+    bd.className = "big sec"; bd.textContent = "Download rooms CSV";
     bd.style.display = "block"; bd.style.textAlign = "center"; bd.style.lineHeight = "52px";
     bd.style.textDecoration = "none";
     bd.href = URL.createObjectURL(new Blob([csv()], {type:"text/csv"}));
     bd.download = name;
     bd.addEventListener("click", function(){ setTimeout(function(){ markSent(warn); }, 400); });
     body.appendChild(bd);
+
+    var bf = document.createElement("a");
+    bf.className = "big sec"; bf.textContent = "Download fixture table CSV";
+    bf.style.display = "block"; bf.style.textAlign = "center"; bf.style.lineHeight = "52px";
+    bf.style.textDecoration = "none";
+    bf.href = URL.createObjectURL(new Blob([fixtureCsv()], {type:"text/csv"}));
+    bf.download = "vurec-fixture-types-" + new Date().toISOString().slice(0,10) + ".csv";
+    body.appendChild(bf);
 
     var b2 = document.createElement("button");
     b2.className = "big sec"; b2.textContent = "Show CSV to copy";
@@ -616,7 +898,8 @@
     if(idx === 0) return;
     var prev = data[list[idx-1].num]; if(!prev) return;
     var cur = rec(list[idx].num);
-    cur.scenario = prev.scenario; cur.watts = prev.watts; cur.wattsUnknown = prev.wattsUnknown;
+    cur.scenario = prev.scenario; cur.wattsUnknown = prev.wattsUnknown;
+    cur.fixtures = (prev.fixtures || []).map(function(f){ return {code:f.code, count:f.count}; });
     cur.dimmable = prev.dimmable; cur.sensor = prev.sensor; cur.photocell = prev.photocell;
     cur.burn = prev.burn;
     save(list[idx].num); render();
