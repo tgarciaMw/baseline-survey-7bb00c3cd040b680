@@ -174,6 +174,8 @@
     width:100%; min-height:46px; border:1px solid var(--line); background:var(--panel);
     color:var(--ink); border-radius:11px; padding:9px 13px; font:inherit;
   }
+  .chip.needchip{border-color:var(--unknown); background:var(--unknown-soft); color:var(--ink)}
+  .chip.okchip{border-color:var(--bus); background:var(--bus-soft); color:var(--bus-ink)}
   .fxrow{
     display:flex; align-items:center; gap:10px; padding:10px 12px;
     border:1px solid var(--line); background:var(--panel); border-radius:11px;
@@ -321,16 +323,17 @@
   var KEY = "vurec-survey-v1";
   var rooms = SEED.map(function(r){ return {floor:r[0], num:r[1], name:r[2], type:guessType(r[2])}; });
   var data = {}, meta = {by:"", lastExport:null};
-  var ftypes = {};   // code -> {desc, size, watts}  shared across all rooms
+  var ftypes = {};   // code -> {size, watts}        shared across all rooms
+  var bhours = {};   // room type -> hours per week, filled after the survey
   var idx = 0, floor = "1";
 
   function store(){
-    try{ localStorage.setItem(KEY, JSON.stringify({data:data, meta:meta, ftypes:ftypes})); }catch(e){}
+    try{ localStorage.setItem(KEY, JSON.stringify({data:data, meta:meta, ftypes:ftypes, bhours:bhours})); }catch(e){}
   }
   function load(){
     try{
       var raw = localStorage.getItem(KEY);
-      if(raw){ var o = JSON.parse(raw); data = o.data || {}; ftypes = o.ftypes || {};
+      if(raw){ var o = JSON.parse(raw); data = o.data || {}; ftypes = o.ftypes || {}; bhours = o.bhours || {};
         if(o.meta){ meta.by = o.meta.by || ""; meta.lastExport = o.meta.lastExport || null; } }
     }catch(e){ data = {}; }
   }
@@ -338,8 +341,8 @@
     if(!data[num]){
       var r = rooms.filter(function(x){return x.num===num;})[0];
       data[num] = {scenario:null, fixtures:[], wattsUnknown:false, dimmable:null,
-                   sensor:null, photocell:null, burn:null, notes:"",
-                   type:(r ? r.type : "Other"), ts:null};
+                   sensor:null, photocell:null, burnOverride:null, notes:"",
+                   type:(r ? r.type : "Other"), typeConfirmed:false, ts:null};
     }
     return data[num];
   }
@@ -351,7 +354,7 @@
     if(d.dimmable) n++;
     if(d.sensor) n++;
     if(d.photocell) n++;
-    if(d.burn !== null) n++;
+    if(d.typeConfirmed) n++;
     return n;
   }
   function complete(num){ return touched(num) >= 6; }
@@ -391,13 +394,10 @@
     wrap.appendChild(head);
 
     var chip = document.createElement("button");
-    chip.className = "chip"; chip.type = "button";
-    chip.textContent = d.type + "  ·  change";
-    chip.addEventListener("click", function(){
-      var keys = Object.keys(TYPES), i = keys.indexOf(d.type);
-      d.type = keys[(i + 1) % keys.length];
-      save(room.num); render();
-    });
+    chip.className = "chip" + (d.typeConfirmed ? " okchip" : " needchip");
+    chip.type = "button";
+    chip.textContent = d.type + (d.typeConfirmed ? "" : "  ·  confirm room type");
+    chip.addEventListener("click", function(){ pickRoomType(room.num); });
     wrap.appendChild(chip);
 
     wrap.appendChild(group("Retrofit scenario", null, SCENARIOS, d.scenario, "",
@@ -493,23 +493,47 @@
     var fsB = document.createElement("fieldset");
     var lgB = document.createElement("legend"); lgB.textContent = "Assumed burn hours"; fsB.appendChild(lgB);
     var hB = document.createElement("div"); hB.className = "hint";
-    hB.textContent = "Hours per week the lights were on before the retrofit.";
+    hB.textContent = "Set once per room type, after the survey - not something to judge from inside the room.";
     fsB.appendChild(hB);
-    var rowB = document.createElement("div"); rowB.className = "numrow";
-    var inpB = document.createElement("input");
-    inpB.type = "number"; inpB.inputMode = "numeric"; inpB.min = "0"; inpB.max = "168"; inpB.step = "1";
-    inpB.id = "burn"; inpB.placeholder = String(TYPES[d.type] || 55);
-    inpB.value = (d.burn === null ? "" : d.burn);
-    inpB.addEventListener("input", function(){
-      d.burn = inpB.value === "" ? null : Number(inpB.value); save(room.num); paintProgress();
+    var bh = roomBurn(room.num);
+    var bdisp = document.createElement("div"); bdisp.className = "total";
+    if(bh === null){
+      bdisp.classList.add("unkline");
+      bdisp.textContent = "Pending \u2014 no hours set for \u201c" + d.type + "\u201d yet";
+    } else {
+      var bv = document.createElement("b"); bv.className = "mono"; bv.textContent = bh + " hrs / wk";
+      bdisp.appendChild(bv);
+      bdisp.appendChild(document.createTextNode(
+        d.burnOverride !== null ? "  \u2014 override for this room" : "  from the room type table"));
+    }
+    fsB.appendChild(bdisp);
+
+    var brow = document.createElement("div");
+    brow.style.display = "flex"; brow.style.flexWrap = "wrap"; brow.style.gap = "8px"; brow.style.marginTop = "10px";
+    var bt = document.createElement("button");
+    bt.type = "button"; bt.className = "chip";
+    var needB = roomTypesNeedingHours().length;
+    bt.textContent = needB ? "Burn hours table \u00b7 " + needB + " need hours" : "Burn hours table";
+    bt.addEventListener("click", openBurnTable);
+    brow.appendChild(bt);
+    var ov = document.createElement("button");
+    ov.type = "button"; ov.className = "chip";
+    ov.textContent = d.burnOverride !== null ? "Remove this room's override" : "Override for this room";
+    ov.addEventListener("click", function(){
+      if(d.burnOverride !== null){ d.burnOverride = null; save(room.num); render(); return; }
+      var v = prompt("Hours per week for this room only (0-168):",
+                     String(bhours[d.type] !== undefined && bhours[d.type] !== null ? bhours[d.type] : ""));
+      if(v === null) return;
+      v = v.trim();
+      if(v === ""){ d.burnOverride = null; } else {
+        var n = Number(v);
+        if(isNaN(n) || n < 0 || n > 168) return;
+        d.burnOverride = n;
+      }
+      save(room.num); render();
     });
-    var uB = document.createElement("div"); uB.className = "unit"; uB.textContent = "hrs / wk";
-    rowB.appendChild(inpB); rowB.appendChild(uB); fsB.appendChild(rowB);
-    var useDef = document.createElement("button");
-    useDef.type = "button"; useDef.className = "chip"; useDef.style.marginTop = "8px";
-    useDef.textContent = "Use " + (TYPES[d.type] || 55) + " for " + d.type;
-    useDef.addEventListener("click", function(){ d.burn = TYPES[d.type] || 55; save(room.num); render(); });
-    fsB.appendChild(useDef);
+    brow.appendChild(ov);
+    fsB.appendChild(brow);
     wrap.appendChild(fsB);
 
     var fsN = document.createElement("fieldset");
@@ -705,6 +729,131 @@
     scrim.addEventListener("click", close);
   }
 
+
+  // ---- room type + burn hours ---------------------------------------------
+  function roomBurn(num){
+    var d = data[num]; if(!d) return null;
+    if(d.burnOverride !== null && d.burnOverride !== undefined) return d.burnOverride;
+    var v = bhours[d.type];
+    return (v === undefined || v === null || v === "") ? null : Number(v);
+  }
+  function roomTypesInUse(){
+    var used = {};
+    rooms.forEach(function(r){
+      var d = data[r.num];
+      if(d && d.typeConfirmed) used[d.type] = (used[d.type] || 0) + 1;
+    });
+    return used;
+  }
+  function roomTypesNeedingHours(){
+    var used = roomTypesInUse();
+    return Object.keys(used).filter(function(t){
+      var v = bhours[t];
+      return v === undefined || v === null || v === "";
+    });
+  }
+
+  function pickRoomType(num){
+    var d = rec(num);
+    var scrim = document.createElement("button");
+    scrim.className = "scrim"; scrim.setAttribute("aria-label","Close");
+    var sh = document.createElement("div"); sh.className = "sheet";
+    sh.setAttribute("role","dialog"); sh.setAttribute("aria-label","Room type");
+    var body = document.createElement("div"); body.className = "sbody";
+    var h = document.createElement("h2"); h.textContent = "Room type";
+    var p = document.createElement("p");
+    p.textContent = "This drives the burn hours later, so it is worth getting right.";
+    body.appendChild(h); body.appendChild(p);
+    function close(){ scrim.remove(); sh.remove(); }
+
+    var g = document.createElement("div"); g.className = "opts two";
+    Object.keys(TYPES).forEach(function(t){
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "opt";
+      b.setAttribute("aria-pressed", String(d.type === t));
+      var bb = document.createElement("b"); bb.textContent = t; b.appendChild(bb);
+      var hv = bhours[t];
+      if(hv !== undefined && hv !== null && hv !== ""){
+        var ss = document.createElement("span"); ss.textContent = hv + " hrs / wk"; b.appendChild(ss);
+      }
+      b.addEventListener("click", function(){
+        d.type = t; d.typeConfirmed = true; save(num); close(); render();
+      });
+      g.appendChild(b);
+    });
+    body.appendChild(g);
+    sh.appendChild(body);
+    document.body.appendChild(scrim); document.body.appendChild(sh);
+    scrim.addEventListener("click", close);
+  }
+
+  function openBurnTable(){
+    var scrim = document.createElement("button");
+    scrim.className = "scrim"; scrim.setAttribute("aria-label","Close");
+    var sh = document.createElement("div"); sh.className = "sheet";
+    sh.setAttribute("role","dialog"); sh.setAttribute("aria-label","Burn hours table");
+    var body = document.createElement("div"); body.className = "sbody";
+    var h = document.createElement("h2"); h.textContent = "Burn hours table";
+    var p = document.createElement("p");
+    p.textContent = "Hours per week before the retrofit, one figure per room type. Fill this in after the survey - the placeholder is a starting point, not a measurement.";
+    body.appendChild(h); body.appendChild(p);
+
+    var used = roomTypesInUse();
+    var keys = Object.keys(used).sort();
+    if(!keys.length){
+      var none = document.createElement("div"); none.className = "warn";
+      none.textContent = "No room types confirmed yet. Confirm a room type on any room and it appears here.";
+      body.appendChild(none);
+    }
+    keys.forEach(function(t){
+      var row = document.createElement("div"); row.className = "fxrow";
+      var lab = document.createElement("div"); lab.className = "fxlab";
+      var b = document.createElement("b"); b.textContent = t;
+      var sp = document.createElement("span");
+      sp.textContent = used[t] + " room" + (used[t] > 1 ? "s" : "");
+      lab.appendChild(b); lab.appendChild(sp);
+      var wi = document.createElement("input");
+      wi.type = "number"; wi.inputMode = "numeric"; wi.min = "0"; wi.max = "168"; wi.className = "wcell";
+      wi.setAttribute("aria-label", "Weekly burn hours for " + t);
+      wi.placeholder = String(TYPES[t] || 55);
+      var cur = bhours[t];
+      wi.value = (cur === undefined || cur === null) ? "" : cur;
+      wi.addEventListener("input", function(){
+        bhours[t] = wi.value === "" ? null : Number(wi.value); store();
+      });
+      row.appendChild(lab); row.appendChild(wi);
+      body.appendChild(row);
+    });
+
+    if(keys.length){
+      var useAll = document.createElement("button");
+      useAll.className = "big sec";
+      useAll.textContent = "Fill every blank with the suggested figure";
+      useAll.addEventListener("click", function(){
+        keys.forEach(function(t){
+          var v = bhours[t];
+          if(v === undefined || v === null || v === "") bhours[t] = TYPES[t] || 55;
+        });
+        store(); scrim.remove(); sh.remove(); openBurnTable();
+      });
+      body.appendChild(useAll);
+    }
+
+    var need = roomTypesNeedingHours();
+    var w = document.createElement("div");
+    w.className = "warn" + (need.length ? "" : " ok");
+    w.textContent = need.length
+      ? need.length + " room type" + (need.length > 1 ? "s" : "") + " still need hours: " +
+        need.join(", ") + ". Those rooms export with a blank figure."
+      : "Every room type in use has weekly hours. Burn hours are complete.";
+    body.appendChild(w);
+
+    sh.appendChild(body);
+    document.body.appendChild(scrim); document.body.appendChild(sh);
+    function close(){ scrim.remove(); sh.remove(); }
+    scrim.addEventListener("click", close);
+  }
+
   function openDrawer(){
     var scrim = document.createElement("button");
     scrim.className = "scrim"; scrim.setAttribute("aria-label", "Close room list");
@@ -738,17 +887,21 @@
   function csv(){
     var head = ["building","floor","room_number","room_name","space_type","scenario",
                 "existing_connected_w","watts_unknown","fixtures","existing_dimmable","existing_occ_model",
-                "existing_had_photocell","assumed_burn_hours_wk","notes","surveyed_by","surveyed_ts"];
+                "existing_had_photocell","assumed_burn_hours_wk","burn_hours_source",
+                "room_type_confirmed","notes","surveyed_by","surveyed_ts"];
     var out = [head.join(",")];
     rooms.forEach(function(r){
       var d = data[r.num];
       if(!d || touched(r.num) === 0) return;
       var w = roomWatts(r.num);
+      var bh = roomBurn(r.num);
       var fx = (d.fixtures || []).map(function(f){ return f.code + ":" + f.count; }).join("|");
       var row = ["Vanderbilt Recreation Center", r.floor, r.num, r.name, d.type,
                  d.scenario || "", d.wattsUnknown ? "" : (w === null ? "" : w),
                  d.wattsUnknown ? "true" : "", fx, d.dimmable || "", d.sensor || "",
-                 d.photocell || "", d.burn === null ? "" : d.burn,
+                 d.photocell || "", bh === null ? "" : bh,
+                 bh === null ? "pending" : (d.burnOverride !== null ? "room override" : "room type table"),
+                 d.typeConfirmed ? "yes" : "inferred",
                  d.notes || "", meta.by || "", d.ts || ""];
       out.push(row.map(function(v){
         v = String(v);
@@ -772,6 +925,16 @@
     return out.join("\n");
   }
 
+  function burnCsv(){
+    var used = roomTypesInUse();
+    var out = ["room_type,burn_hours_per_week,rooms_of_this_type,suggested_default"];
+    Object.keys(used).sort().forEach(function(t){
+      var v = bhours[t];
+      out.push([t, (v === undefined || v === null) ? "" : v, used[t], TYPES[t] || ""].join(","));
+    });
+    return out.join("\n");
+  }
+
   function openSheet(){
     var scrim = document.createElement("button");
     scrim.className = "scrim"; scrim.setAttribute("aria-label", "Close");
@@ -789,6 +952,7 @@
     var h2 = document.createElement("h2"); h2.textContent = "Send survey";
     var p = document.createElement("p"); p.textContent = "The CSV loads straight into mwLink - no retyping.";
     body.appendChild(h2); body.appendChild(p);
+    var needHours = roomTypesNeedingHours();
     var tcodes = Object.keys(ftypes);
     var needWatts = tcodes.filter(function(c){
       return ftypes[c].watts === null || ftypes[c].watts === undefined;
@@ -796,7 +960,8 @@
     [["Rooms complete", doneN + " of " + rooms.length],
      ["Rooms started", String(captured)],
      ["Rooms with a “can’t tell”", String(unknowns)],
-     ["Fixture types", tcodes.length + (needWatts.length ? " (" + needWatts.length + " need watts)" : "")]
+     ["Fixture types", tcodes.length + (needWatts.length ? " (" + needWatts.length + " need watts)" : "")],
+     ["Room types needing hours", String(needHours.length)]
     ].forEach(function(pair){
       var s = document.createElement("div"); s.className = "stat";
       var a = document.createElement("span"); a.textContent = pair[0];
@@ -827,8 +992,10 @@
         var file = new File([csv()], name, {type:"text/csv"});
         var ffile = new File([fixtureCsv()],
           "vurec-fixture-types-" + new Date().toISOString().slice(0,10) + ".csv", {type:"text/csv"});
-        var payload = (navigator.canShare && navigator.canShare({files:[file, ffile]}))
-          ? {files:[file, ffile], title:"Encelium baseline survey"}
+        var bfile = new File([burnCsv()],
+          "vurec-burn-hours-" + new Date().toISOString().slice(0,10) + ".csv", {type:"text/csv"});
+        var payload = (navigator.canShare && navigator.canShare({files:[file, ffile, bfile]}))
+          ? {files:[file, ffile, bfile], title:"Encelium baseline survey"}
           : ((navigator.canShare && navigator.canShare({files:[file]}))
               ? {files:[file], title:"Encelium baseline survey"}
               : {title:"Encelium baseline survey", text:csv()});
@@ -856,6 +1023,25 @@
     bd.download = name;
     bd.addEventListener("click", function(){ setTimeout(function(){ markSent(warn); }, 400); });
     body.appendChild(bd);
+
+    if(needHours.length){
+      var bw = document.createElement("div"); bw.className = "warn";
+      bw.textContent = "No burn hours yet for " + needHours.join(", ") +
+        ". Those rooms export with a blank figure until the table is filled.";
+      body.appendChild(bw);
+      var ob = document.createElement("button");
+      ob.className = "big sec"; ob.textContent = "Open burn hours table";
+      ob.addEventListener("click", function(){ close(); openBurnTable(); });
+      body.appendChild(ob);
+    }
+
+    var bh2 = document.createElement("a");
+    bh2.className = "big sec"; bh2.textContent = "Download burn hours CSV";
+    bh2.style.display = "block"; bh2.style.textAlign = "center"; bh2.style.lineHeight = "52px";
+    bh2.style.textDecoration = "none";
+    bh2.href = URL.createObjectURL(new Blob([burnCsv()], {type:"text/csv"}));
+    bh2.download = "vurec-burn-hours-" + new Date().toISOString().slice(0,10) + ".csv";
+    body.appendChild(bh2);
 
     var bf = document.createElement("a");
     bf.className = "big sec"; bf.textContent = "Download fixture table CSV";
@@ -901,7 +1087,8 @@
     cur.scenario = prev.scenario; cur.wattsUnknown = prev.wattsUnknown;
     cur.fixtures = (prev.fixtures || []).map(function(f){ return {code:f.code, count:f.count}; });
     cur.dimmable = prev.dimmable; cur.sensor = prev.sensor; cur.photocell = prev.photocell;
-    cur.burn = prev.burn;
+    cur.burnOverride = prev.burnOverride;
+    cur.type = prev.type; cur.typeConfirmed = prev.typeConfirmed;
     save(list[idx].num); render();
   });
 

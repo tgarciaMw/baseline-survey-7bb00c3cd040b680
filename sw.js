@@ -4,7 +4,7 @@
    Cache-first for our own files; fonts are best-effort (the page has a real
    system fallback stack, so a font miss is cosmetic, not fatal). */
 
-var CACHE = "vurec-survey-v2";   // bump on every deploy or installed phones keep the old app
+var CACHE = "vurec-survey-v3";   // bump on every deploy or installed phones keep the old app
 var CORE = [
   "./",
   "./index.html",
